@@ -16,6 +16,6 @@ relay-log-index=mysql-relay-bin.index
 log_replica_updates=ON
 
 # SSL Configuration (optional - only needed if SSL_ENABLED=true)
-# ssl_ca=/var/lib/mysql/ssl/ca-cert.pem
-# ssl_cert=/var/lib/mysql/ssl/client-cert.pem
-# ssl_key=/var/lib/mysql/ssl/client-key.pem
+ssl_ca=/var/lib/mysql/ssl/ca-cert.pem
+ssl_cert=/var/lib/mysql/ssl/client-cert.pem
+ssl_key=/var/lib/mysql/ssl/client-key.pem

@@ -1,0 +1,89 @@
+name: Test Replication
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test-replication:
+    name: Test MySQL Replication
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create environment files
+        run: |
+          cp master/.env.example master/.env
+          cp replica/.env.example replica/.env
+          
+          # Update passwords for testing
+          sed -i 's/your_root_password/test_root_pass/g' master/.env replica/.env
+          sed -i 's/your_app_password/test_app_pass/g' master/.env replica/.env
+          sed -i 's/your_replication_password/test_repl_pass/g' master/.env replica/.env
+          
+          # Fix SSL_ENABLED line in master/.env.example
+          sed -i 's/SSL_ENABLED=true192.168.1.100/SSL_ENABLED=false/' master/.env
+          sed -i 's/SSL_ENABLED=true/SSL_ENABLED=false/' replica/.env
+          
+          # Set local networking for same-host deployment
+          sed -i 's/MASTER_HOST=192.168.1.100/MASTER_HOST=mysql-master/' replica/.env
+
+      - name: Start MySQL replication
+        run: ./mange.sh start
+
+      - name: Wait for services to be ready
+        run: sleep 30
+
+      - name: Check replication status
+        run: |
+          ./mange.sh status
+          
+          # Test data replication
+          docker exec mysql-master mysql -u root -ptest_root_pass -e "
+            CREATE DATABASE test_replication;
+            USE test_replication;
+            CREATE TABLE test_table (id INT PRIMARY KEY, message VARCHAR(100));
+            INSERT INTO test_table VALUES (1, 'Hello from master');
+          "
+          
+          sleep 5
+          
+          # Verify data on replica
+          docker exec mysql-replica mysql -u root -ptest_root_pass -e "
+            USE test_replication;
+            SELECT * FROM test_table;
+          " | grep "Hello from master"
+
+      - name: Test replica read-only mode
+        run: |
+          # This should fail since replica is read-only
+          if docker exec mysql-replica mysql -u root -ptest_root_pass -e "
+            USE test_replication;
+            INSERT INTO test_table VALUES (2, 'This should fail');
+          " 2>/dev/null; then
+            echo "ERROR: Replica should be read-only!"
+            exit 1
+          else
+            echo "SUCCESS: Replica is properly read-only"
+          fi
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Master Logs ==="
+          docker logs mysql-master --tail 50
+          echo "=== Replica Logs ==="
+          docker logs mysql-replica --tail 50
+          echo "=== Replication Status ==="
+          ./mange.sh status || true
+
+      - name: Cleanup
+        if: always()
+        run: ./mange.sh stop

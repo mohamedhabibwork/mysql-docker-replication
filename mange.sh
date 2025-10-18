@@ -28,8 +28,10 @@ setup_directories() {
     
     # Create all necessary directories
     mkdir -p "$SCRIPT_DIR/master/data"
+    mkdir -p "$SCRIPT_DIR/master/data/ssl"
     mkdir -p "$SCRIPT_DIR/master/logs"
     mkdir -p "$SCRIPT_DIR/replica/data"
+    mkdir -p "$SCRIPT_DIR/replica/data/ssl"
     mkdir -p "$SCRIPT_DIR/replica/logs"
     mkdir -p "$SCRIPT_DIR/ssl-certs"
     
@@ -158,11 +160,34 @@ setup_ssl() {
     else
         print_info "✓ Found pre-generated SSL certificates in ssl-certs/"
     fi
-    
+
+    # Copy certificates to master container
+    print_info "Copying SSL certificates to master container..."
+    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/server-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
+
+    if [ $? -ne 0 ]; then
+        print_error "Failed to copy SSL certificates to master"
+        return 1
+    fi
+
+
+    # Copy SSL certificates to replica container
+    print_info "Copying SSL certificates to replica container..."
+    source "$SCRIPT_DIR/replica/.env"
+    REPLICA_CONTAINER=$CONTAINER_NAME
+    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/client-key.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null 
+    if [ $? -ne 0 ]; then
+        print_error "Failed to copy SSL certificates to replica"
+        return 1
+    fi
     # Wait for MySQL to be ready
     print_info "Waiting for MySQL initialization..."
     local retries=0
-    local max_retries=30
+    local max_retries=60
     while [ $retries -lt $max_retries ]; do
         docker exec $MASTER_CONTAINER mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SELECT 1;" 2>/dev/null
         if [ $? -eq 0 ]; then
@@ -178,26 +203,18 @@ setup_ssl() {
         return 1
     fi
     
-    # Copy certificates to master container
-    print_info "Copying SSL certificates to master container..."
-    docker exec $MASTER_CONTAINER mkdir -p /var/lib/mysql/ssl 2>/dev/null
-    
-    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/ca-key.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/server-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/server-key.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-key.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to copy SSL certificates to master"
+    # Check if SSL certificates are already mounted via volume
+    print_info "Checking SSL certificate availability in master container..."
+    docker exec $MASTER_CONTAINER test -f /var/lib/mysql/ssl/ca-cert.pem 2>/dev/null
+    if [ $? -eq 0 ]; then
+        print_info "✓ SSL certificates are already available (mounted via volume)"
+    else
+        print_warning "SSL certificates not found in container. Please ensure ssl-certs directory is mounted as volume in docker-compose.yml"
+        print_info "Add this volume mapping to your master docker-compose.yml:"
+        print_info "    volumes:"
+        print_info "      - ../ssl-certs:/var/lib/mysql/ssl:ro"
         return 1
     fi
-    
-    # Set proper permissions in container
-    docker exec $MASTER_CONTAINER chown -R mysql:mysql /var/lib/mysql/ssl 2>/dev/null
-    docker exec $MASTER_CONTAINER chmod 644 /var/lib/mysql/ssl/ca-cert.pem /var/lib/mysql/ssl/server-cert.pem /var/lib/mysql/ssl/client-cert.pem 2>/dev/null
-    docker exec $MASTER_CONTAINER chmod 600 /var/lib/mysql/ssl/ca-key.pem /var/lib/mysql/ssl/server-key.pem /var/lib/mysql/ssl/client-key.pem 2>/dev/null
     
     print_info "✓ SSL certificates copied to master successfully"
     
@@ -249,7 +266,7 @@ copy_ssl_to_replica() {
         return 1
     fi
     
-    print_info "SSL certificates found. Copying to replica..."
+    print_info "SSL certificates found and mounted via Docker volume."
     
     # Wait for replica to be ready
     print_info "Waiting for replica MySQL to be ready..."
@@ -272,32 +289,12 @@ copy_ssl_to_replica() {
         return 1
     fi
     
-    # Create SSL directory in replica
-    docker exec $REPLICA_CONTAINER mkdir -p /var/lib/mysql/ssl 2>/dev/null
-    
-    # Copy certificates to replica
-    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-key.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to copy SSL certificates to replica"
-        return 1
-    fi
-    
-    # Set permissions
-    docker exec $REPLICA_CONTAINER chown -R mysql:mysql /var/lib/mysql/ssl 2>/dev/null
-    docker exec $REPLICA_CONTAINER chmod 644 /var/lib/mysql/ssl/ca-cert.pem /var/lib/mysql/ssl/client-cert.pem 2>/dev/null
-    docker exec $REPLICA_CONTAINER chmod 600 /var/lib/mysql/ssl/client-key.pem 2>/dev/null
-    
-    print_info "✓ SSL certificates copied to replica successfully"
-    
-    # Verify certificates exist in replica
+    # Verify certificates are accessible in replica
     docker exec $REPLICA_CONTAINER test -f /var/lib/mysql/ssl/ca-cert.pem 2>/dev/null
     if [ $? -eq 0 ]; then
         print_info "✓ SSL certificates verified on replica"
     else
-        print_error "SSL certificates verification failed on replica"
+        print_error "SSL certificates not found in replica container"
         return 1
     fi
 }

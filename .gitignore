@@ -19,3 +19,16 @@ docker-compose.override.yml
 *.tmp
 *.swp
 *~
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup

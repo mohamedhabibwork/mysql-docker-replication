@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: README
+    url: https://github.com/mohamedhabibwork/mysql-docker-replication#readme
+    about: Review the documentation before filing a new issue.
