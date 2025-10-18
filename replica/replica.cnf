@@ -1,0 +1,14 @@
+[mysqld]
+# Server ID for replica
+server-id=2
+
+# Relay log settings
+relay-log=mysql-relay-bin
+relay-log-index=mysql-relay-bin.index
+
+# Enable read-only mode for replica (optional, comment out if you want writes)
+read_only=ON
+super_read_only=ON
+
+# Logging
+log_replica_updates=ON

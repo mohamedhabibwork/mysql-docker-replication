@@ -1,0 +1,15 @@
+[mysqld]
+# Server ID for master
+server-id=1
+
+# Enable binary logging for replication
+log_bin=mysql-bin
+binlog_format=ROW
+binlog_expire_logs_seconds=864000
+
+# Replication settings
+relay-log=mysql-relay-bin
+relay-log-index=mysql-relay-bin.index
+
+# Log all changes
+log_replica_updates=ON
