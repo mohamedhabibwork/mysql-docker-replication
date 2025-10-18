@@ -7,8 +7,15 @@ relay-log=mysql-relay-bin
 relay-log-index=mysql-relay-bin.index
 
 # Enable read-only mode for replica (optional, comment out if you want writes)
-read_only=ON
-super_read_only=ON
+# Note: read_only and super_read_only are set via SQL after replication is configured
+# to avoid initialization issues
+# read_only=ON
+# super_read_only=ON
 
 # Logging
 log_replica_updates=ON
+
+# SSL Configuration (optional - only needed if SSL_ENABLED=true)
+# ssl_ca=/var/lib/mysql/ssl/ca-cert.pem
+# ssl_cert=/var/lib/mysql/ssl/client-cert.pem
+# ssl_key=/var/lib/mysql/ssl/client-key.pem

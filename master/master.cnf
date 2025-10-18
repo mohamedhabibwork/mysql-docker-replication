@@ -13,3 +13,9 @@ relay-log-index=mysql-relay-bin.index
 
 # Log all changes
 log_replica_updates=ON
+
+# SSL Configuration
+ssl_ca=/var/lib/mysql/ssl/ca-cert.pem
+ssl_cert=/var/lib/mysql/ssl/server-cert.pem
+ssl_key=/var/lib/mysql/ssl/server-key.pem
+require_secure_transport=OFF

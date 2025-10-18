@@ -8,6 +8,9 @@ master/logs/
 replica/data/
 replica/logs/
 
+# SSL certificates (exported for replica)
+ssl-certs/
+
 # Docker compose override files
 docker-compose.override.yml
 
