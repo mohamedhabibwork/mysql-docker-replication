@@ -11,8 +11,8 @@ services:
     ports:
       - "${HOST_PORT}:3306"
     volumes:
-      - ${DATA_DIR}:/var/lib/mysql
-      - ${LOGS_DIR}:/var/log/mysql
+      - ./data:/var/lib/mysql
+      - ./logs:/var/log/mysql
       - ./replica.cnf:/etc/mysql/conf.d/replica.cnf
     command: --server-id=${SERVER_ID} --relay-log=mysql-relay-bin --relay-log-index=mysql-relay-bin.index
     networks:
