@@ -27,12 +27,6 @@ setup_directories() {
     print_info "Setting up data directories..."
     
     # Create all necessary directories
-    mkdir -p "$SCRIPT_DIR/master/data"
-    mkdir -p "$SCRIPT_DIR/master/data/ssl"
-    mkdir -p "$SCRIPT_DIR/master/logs"
-    mkdir -p "$SCRIPT_DIR/replica/data"
-    mkdir -p "$SCRIPT_DIR/replica/data/ssl"
-    mkdir -p "$SCRIPT_DIR/replica/logs"
     mkdir -p "$SCRIPT_DIR/ssl-certs"
     
     print_info "Directories created successfully"
@@ -54,10 +48,6 @@ fix_permissions() {
         print_info "  ✓ Master logs directory: 777"
     fi
     
-    if [ -d "$SCRIPT_DIR/replica/data" ]; then
-        chmod -R 777 "$SCRIPT_DIR/replica/data" 2>/dev/null || true
-        print_info "  ✓ Replica data directory: 777"
-    fi
     
     if [ -d "$SCRIPT_DIR/replica/logs" ]; then
         chmod -R 777 "$SCRIPT_DIR/replica/logs" 2>/dev/null || true
@@ -163,10 +153,10 @@ setup_ssl() {
 
     # Copy certificates to master container
     print_info "Copying SSL certificates to master container..."
-    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/server-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $MASTER_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-
+    cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $SCRIPT_DIR/master/data/ssl/ 2>/dev/null
+    cp "$SCRIPT_DIR/ssl-certs/server-cert.pem" $SCRIPT_DIR/master/data/ssl/ 2>/dev/null
+    cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $SCRIPT_DIR/master/data/ssl/ 2>/dev/null
+    echo ""
     if [ $? -ne 0 ]; then
         print_error "Failed to copy SSL certificates to master"
         return 1
@@ -177,9 +167,9 @@ setup_ssl() {
     print_info "Copying SSL certificates to replica container..."
     source "$SCRIPT_DIR/replica/.env"
     REPLICA_CONTAINER=$CONTAINER_NAME
-    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null
-    docker cp "$SCRIPT_DIR/ssl-certs/client-key.pem" $REPLICA_CONTAINER:/var/lib/mysql/ssl/ 2>/dev/null 
+    docker cp "$SCRIPT_DIR/ssl-certs/ca-cert.pem" $SCRIPT_DIR/replica/data/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/client-cert.pem" $SCRIPT_DIR/replica/data/ssl/ 2>/dev/null
+    docker cp "$SCRIPT_DIR/ssl-certs/client-key.pem" $SCRIPT_DIR/replica/data/ssl/ 2>/dev/null 
     if [ $? -ne 0 ]; then
         print_error "Failed to copy SSL certificates to replica"
         return 1
@@ -506,9 +496,9 @@ reset() {
         docker-compose down -v
         
         print_info "Deleting data directories..."
-        rm -rf "$SCRIPT_DIR/master/data"/*
+        # rm -rf "$SCRIPT_DIR/master/data"/*
         rm -rf "$SCRIPT_DIR/master/logs"/*
-        rm -rf "$SCRIPT_DIR/replica/data"/*
+        # rm -rf "$SCRIPT_DIR/replica/data"/*
         rm -rf "$SCRIPT_DIR/replica/logs"/*
         
         print_info "Reset completed. Run '$0 start' to restart."
